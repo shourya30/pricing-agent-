@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -50,48 +49,64 @@ if st.sidebar.checkbox("Show Historical Price Trend", True):
 # Forecasting Module
 if st.sidebar.checkbox("Forecast Future Prices", True):
     st.subheader("🔮 Glycerine Price Forecast (Next 12 Months)")
-    
+
     # Fit ARIMA model
-    train_size = int(len(glycerine_data) * 0.8)
-    train = glycerine_data[:train_size]
-    
-    model = ARIMA(train["Glycerine_Price_USD_per_Ton"], order=(3,1,3))
-    model_fit = model.fit()
+    try:
+        train_size = int(len(glycerine_data) * 0.8)
+        train = glycerine_data[:train_size]
 
-    # Forecast future prices
-    forecast_steps = 12
-    future_forecast = model_fit.forecast(steps=forecast_steps)
-    
-    # Create future dates
-    future_dates = pd.date_range(start=glycerine_data["Date"].iloc[-1], periods=forecast_steps+1, freq="M")[1:]
-    
-    forecast_df = pd.DataFrame({"Date": future_dates, "Forecasted_Price": future_forecast.values})
+        model = ARIMA(train["Glycerine_Price_USD_per_Ton"], order=(3,1,3))
+        model_fit = model.fit()
 
-    # Plot forecast
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(glycerine_data["Date"], glycerine_data["Glycerine_Price_USD_per_Ton"], label="Historical Prices", color="blue")
-    ax.plot(forecast_df["Date"], forecast_df["Forecasted_Price"], label="Forecasted Prices", color="red", linestyle="dashed")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Price (USD per Ton)")
-    ax.set_title("Glycerine Price Forecast (Next 12 Months)")
-    ax.legend()
-    ax.grid(True)
-    st.pyplot(fig)
+        # Forecast future prices
+        forecast_steps = 12
+        future_forecast = model_fit.forecast(steps=forecast_steps)
+
+        # Create future dates
+        future_dates = pd.date_range(start=glycerine_data["Date"].iloc[-1], periods=forecast_steps+1, freq="M")[1:]
+
+        # Ensure forecast length matches dates
+        if len(future_forecast) == len(future_dates):
+            forecast_df = pd.DataFrame({"Date": future_dates, "Forecasted_Price": future_forecast.values})
+        else:
+            forecast_df = pd.DataFrame({"Date": future_dates, "Forecasted_Price": [None] * len(future_dates)})
+
+    except Exception as e:
+        st.error(f"Forecasting error: {e}")
+        forecast_df = pd.DataFrame({"Date": [], "Forecasted_Price": []})
 
     # Display forecasted data
+    st.write("Forecast Data:")
     st.dataframe(forecast_df)
+
+    # Plot forecast
+    if not forecast_df.empty:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(glycerine_data["Date"], glycerine_data["Glycerine_Price_USD_per_Ton"], label="Historical Prices", color="blue")
+        ax.plot(forecast_df["Date"], forecast_df["Forecasted_Price"], label="Forecasted Prices", color="red", linestyle="dashed")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Price (USD per Ton)")
+        ax.set_title("Glycerine Price Forecast (Next 12 Months)")
+        ax.legend()
+        ax.grid(True)
+        st.pyplot(fig)
 
 # AI-Based Decision Making
 if st.sidebar.checkbox("AI Recommendations", True):
     st.subheader("🤖 AI-Based Market Recommendations")
 
-    latest_price = glycerine_data["Glycerine_Price_USD_per_Ton"].iloc[-1]
-    forecasted_price = forecast_df["Forecasted_Price"].iloc[0]
+    if not forecast_df.empty:
+        latest_price = glycerine_data["Glycerine_Price_USD_per_Ton"].iloc[-1]
+        forecasted_price = forecast_df["Forecasted_Price"].iloc[0] if not forecast_df.empty else None
 
-    if forecasted_price > latest_price:
-        st.success("📈 AI Suggestion: Prices are expected to **increase**. Consider **buying now**.")
+        if forecasted_price and forecasted_price > latest_price:
+            st.success("📈 AI Suggestion: Prices are expected to **increase**. Consider **buying now**.")
+        elif forecasted_price:
+            st.warning("📉 AI Suggestion: Prices are expected to **decrease**. Consider **waiting** before buying.")
+        else:
+            st.error("⚠️ Unable to generate forecast-based recommendations.")
     else:
-        st.warning("📉 AI Suggestion: Prices are expected to **decrease**. Consider **waiting** before buying.")
+        st.error("⚠️ No forecast data available for recommendations.")
 
 # Alerts for Significant Price Changes
 if st.sidebar.checkbox("Alerts & Reporting", True):
@@ -111,3 +126,4 @@ if st.sidebar.checkbox("Alerts & Reporting", True):
         st.dataframe(alerts)
     else:
         st.success("✅ No major price fluctuations detected.")
+
